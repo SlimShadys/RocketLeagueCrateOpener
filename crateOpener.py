@@ -39,7 +39,12 @@ ratioY = 1440 / screenHeight
 selectCrate = [133, 371]
 openCrate = [274, 1218]
 confirmOpening = [1135, 811]
-confirmItem = [1455, 1315] # To be checked. Maybe some items have "Equip now" along with "Ok"
+confirmItem = [1434, 1315] # Some items have the "Equip now" button along with "Ok".
+                           #
+                           # 1434 on the X-axis should be the value for pressing the "Ok" button
+                           # (in case we have only the "Ok" button) and for pressing the same 
+                           # "Ok" button, in case we have the "Equip now" and "Ok" screen.
+                           # To be tested.
 
 # Assuming user is at the "Rewards" item list
 # Until the user does not trigger the mouse to a corner of the screen, let's loop the rewards
@@ -56,7 +61,7 @@ while(True):
     pyautogui.moveTo(confirmOpening[0]/ratioX, confirmOpening[1]/ratioY, duration=0)
     pyautogui.click(x=confirmOpening[0]/ratioX, y=confirmOpening[1]/ratioY, clicks=1, interval=0, button='left', duration=0.1)
 
-    # 1455 x 1315 -> Confirm the item received
+    # 1434 x 1315 -> Confirm the item received
     pyautogui.moveTo(confirmItem[0]/ratioX, confirmItem[1]/ratioY, duration=5.0) # Let's wait 5 seconds for the animation
     pyautogui.click(x=confirmItem[0]/ratioX, y=confirmItem[1]/ratioY, clicks=1, interval=0, button='left', duration=0.1)
 
