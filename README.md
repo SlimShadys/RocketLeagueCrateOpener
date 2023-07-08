@@ -13,10 +13,12 @@ In order to run the script, make sure to meet the following library requirement:
 - pyautogui
 - pygetwindow
 - keyboard
+- cv2
+- numpy
 
-You can install it through:
+You can install it through pip with the following command:
 ```
-pip install -U pyautogui pygetwindow keyboard
+pip install -U pyautogui pygetwindow keyboard opencv-python numpy
 ```
 
 ## Usage

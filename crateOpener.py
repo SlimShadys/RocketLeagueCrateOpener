@@ -25,28 +25,18 @@
 # Email: gianmarcoscarano@gmail.com
 # -----------------------------------------------------------
 
-import datetime
+import os
 import sys
 import threading
 import time
 
-import keyboard
+import cv2
 import pyautogui
 import pygetwindow as gw
 
-stop_event = threading.Event()
+from utils import add_timestamp, checkButtons, checkKeyThread
 
-def add_timestamp():
-    return datetime.datetime.now().strftime("[%H:%M:%S]")
-
-def check_key_thread():
-    while True:
-        if keyboard.is_pressed('F4'):
-            stop_event.set()  # Set the event to inform other threads to stop
-            print(F"{add_timestamp()}: Pressed F4! Stop event triggered.")
-            break
-
-def main_thread():
+def mainThread() -> None:
     screenWidth, screenHeight = pyautogui.size() # Get the size of the primary monitor.
 
     ratioX = 2560 / screenWidth
@@ -55,17 +45,9 @@ def main_thread():
     print(F"{add_timestamp()}: Operating on a screen with following resolution: {screenWidth}x{screenHeight}")
     print(F"{add_timestamp()}: Ratio is: {ratioX}")
 
-    # List of commands for opening a crate.
-    # ----------------------
-    # Some items, when unpacked, have the "Equip now" button along with "Ok".
-    # In "confirmItem", 1434 on the X-axis should be the value for pressing 
-    # the "Ok" button (in case we have only the "Ok" button) and for pressing
-    # the same "Ok" button, in case we have the "Equip now" and "Ok" screen.
-    # To be tested
-    # ----------------------
-    '''            selectCrate,  openCrate, confirmOpening, confirmItem'''
-    listCommands = [[133, 371], [274, 1218], [1135, 811], [1443, 1296]]
-    durationMove = 0.0 # Duration for moving mouse. Default = 0.0 (Instant)
+    # -------------------- List of commands for opening a crate --------------------
+    #             selectCrate,  openCrate,  confirmOpening, confirmItem
+    listCommands = [[133, 371], [274, 1218], [1135, 811], [0, 0]]
 
     # We loop for all windows starting with "Rocket League" and we check if the Window title starts with "Rocket League (" 
     # since the default window is called: "Rocket League (64-bit, DX11, Cooked)"
@@ -73,7 +55,7 @@ def main_thread():
     # there is still a 32-Bit version of Rocket League floating around.
     # Also, we check if the window is active, meaning that the user is inside the game's window.
     print(F"{add_timestamp()}: Waiting for Rocket League screen...")
-    while not any(win.title.startswith("Rocket League (") and win.isActive == True for win in gw.getWindowsWithTitle("Rocket League")):
+    while not any(win.title.startswith("Rocket League (") and win.isActive for win in gw.getWindowsWithTitle("Rocket League")):
         if stop_event.is_set(): # Always check if the stop_event (F4) is called.
             sys.exit(0)
         time.sleep(0.2) # Sleep for 0.2ms before checking again
@@ -85,24 +67,39 @@ def main_thread():
     # Until the user does not trigger the mouse to a corner of the screen or press F4, let's loop the rewards
     while True:
         for idx, pos in enumerate(listCommands):
-            if stop_event.is_set(): # Always check if the stop_event (F4) is called.
-                print(F"{add_timestamp()}: Exiting now from main loop.")
+             # If we are in the "confirmItem" command, let's sleep for 5.5 seconds (due to crate animation)
+            if(idx == len(listCommands) - 1):
+                time.sleep(5.5)
+                pos = checkButtons(okTemplate, equipNowTemplate, threshold)
+                if(pos[0] == 0):
+                    stop_event.set()
+
+            if (stop_event.is_set()): # Always check if the stop_event (F4) is called.
+                print(F"{add_timestamp()}: -- Exiting now from main loop --")
                 sys.exit(0)
-             # If we are in the "confirmItem" command, let's switch the mouse movement from 0.0 seconds (instant) to 5.5 (due to crate animation)
-            durationMove = 5.5 if idx == len(listCommands)-1 else 0.0
+
             pyautogui.moveTo(pos[0]/ratioX, pos[1]/ratioY, duration=durationMove)
             pyautogui.click(x=pos[0]/ratioX, y=pos[1]/ratioY, clicks=1, interval=0, button='left', duration=0.05)
 
         pyautogui.press('esc', interval=0.1)
         time.sleep(0.2)
 
-# Create and start the main thread
-main_thread = threading.Thread(target=main_thread)
-main_thread.start()
+# ----- ACTUAL MAIN LOOP ----- #
+if __name__ == '__main__':
 
-# Create and start the key checking thread
-check_key_thread = threading.Thread(target=check_key_thread)
-check_key_thread.start()
+    # Load the template images for "Ok" and "Equip now" buttons
+    okTemplate = cv2.imread(os.path.join('media', "Ok.png"), cv2.IMREAD_GRAYSCALE)
+    equipNowTemplate = cv2.imread(os.path.join('media', "EquipNow.png"), cv2.IMREAD_GRAYSCALE)
 
-# Wait for the main thread to complete
-main_thread.join()
+    threshold = 0.89 # Set a threshold value for template matching results
+    durationMove = 0.0 # Duration for moving mouse. Default = 0.0 (Instant)
+
+    stop_event = threading.Event() # Stop event Thread
+
+    # Create and start the main thread
+    mainThread = threading.Thread(target=mainThread)
+    mainThread.start()
+
+    # Create and start the key checking thread
+    checkKeyThread = threading.Thread(target=checkKeyThread(stop_event))
+    checkKeyThread.start()
