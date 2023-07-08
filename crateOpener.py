@@ -25,46 +25,84 @@
 # Email: gianmarcoscarano@gmail.com
 # -----------------------------------------------------------
 
-import pyautogui
+import datetime
+import sys
+import threading
 import time
 
-screenWidth, screenHeight = pyautogui.size() # Get the size of the primary monitor.
+import keyboard
+import pyautogui
+import pygetwindow as gw
 
-print(F"Operating on a screen with following resolution: {screenWidth}x{screenHeight}")
-print(F"Ratio is: {2560 / screenWidth}")
+stop_event = threading.Event()
 
-ratioX = 2560 / screenWidth
-ratioY = 1440 / screenHeight
+def add_timestamp():
+    return datetime.datetime.now().strftime("[%H:%M:%S]")
 
-selectCrate = [133, 371]
-openCrate = [274, 1218]
-confirmOpening = [1135, 811]
-confirmItem = [1434, 1315] # Some items have the "Equip now" button along with "Ok".
-                           #
-                           # 1434 on the X-axis should be the value for pressing the "Ok" button
-                           # (in case we have only the "Ok" button) and for pressing the same 
-                           # "Ok" button, in case we have the "Equip now" and "Ok" screen.
-                           # To be tested.
+def check_key_thread():
+    while True:
+        if keyboard.is_pressed('F4'):
+            stop_event.set()  # Set the event to inform other threads to stop
+            print(F"{add_timestamp()}: Pressed F4! Stop event triggered.")
+            break
 
-# Assuming user is at the "Rewards" item list
-# Until the user does not trigger the mouse to a corner of the screen, let's loop the rewards
-while(True):
-    # 133 x 371 -> Select crate
-    pyautogui.moveTo(selectCrate[0]/ratioX, selectCrate[1]/ratioY, duration=0)  # Move mouse towards the first crate to open
-    pyautogui.click(x=selectCrate[0]/ratioX, y=selectCrate[1]/ratioY, clicks=1, interval=0, button='left', duration=0.1)
+def main_thread():
+    screenWidth, screenHeight = pyautogui.size() # Get the size of the primary monitor.
 
-    # 274 x 1218 -> Position over "Open Crate" and click it
-    pyautogui.moveTo(openCrate[0]/ratioX, openCrate[1]/ratioY, duration=0)
-    pyautogui.click(x=openCrate[0]/ratioX, y=openCrate[1]/ratioY, clicks=1, interval=0, button='left', duration=0.1)
+    ratioX = 2560 / screenWidth
+    ratioY = 1440 / screenHeight
 
-    # 1135 x 811 -> Confirm the "Open Crate" and click
-    pyautogui.moveTo(confirmOpening[0]/ratioX, confirmOpening[1]/ratioY, duration=0)
-    pyautogui.click(x=confirmOpening[0]/ratioX, y=confirmOpening[1]/ratioY, clicks=1, interval=0, button='left', duration=0.1)
+    print(F"{add_timestamp()}: Operating on a screen with following resolution: {screenWidth}x{screenHeight}")
+    print(F"{add_timestamp()}: Ratio is: {ratioX}")
 
-    # 1434 x 1315 -> Confirm the item received
-    pyautogui.moveTo(confirmItem[0]/ratioX, confirmItem[1]/ratioY, duration=5.0) # Let's wait 5 seconds for the animation
-    pyautogui.click(x=confirmItem[0]/ratioX, y=confirmItem[1]/ratioY, clicks=1, interval=0, button='left', duration=0.1)
+    # List of commands for opening a crate.
+    # ----------------------
+    # Some items, when unpacked, have the "Equip now" button along with "Ok".
+    # In "confirmItem", 1434 on the X-axis should be the value for pressing 
+    # the "Ok" button (in case we have only the "Ok" button) and for pressing
+    # the same "Ok" button, in case we have the "Equip now" and "Ok" screen.
+    # To be tested
+    # ----------------------
+    '''            selectCrate,  openCrate, confirmOpening, confirmItem'''
+    listCommands = [[133, 371], [274, 1218], [1135, 811], [1443, 1296]]
+    durationMove = 0.0 # Duration for moving mouse. Default = 0.0 (Instant)
 
-    # Need to go back to item list -> Press 'Esc'
-    pyautogui.press('esc', interval=0.1)
-    time.sleep(0.3) # Let's sleep 0.3ms
+    # We loop for all windows starting with "Rocket League" and we check if the Window title starts with "Rocket League (" 
+    # since the default window is called: "Rocket League (64-bit, DX11, Cooked)"
+    # We could've directly passed the above string to the getWindowsWithTitle() function, but I don't know if
+    # there is still a 32-Bit version of Rocket League floating around.
+    # Also, we check if the window is active, meaning that the user is inside the game's window.
+    print(F"{add_timestamp()}: Waiting for Rocket League screen...")
+    while not any(win.title.startswith("Rocket League (") and win.isActive == True for win in gw.getWindowsWithTitle("Rocket League")):
+        if stop_event.is_set(): # Always check if the stop_event (F4) is called.
+            sys.exit(0)
+        time.sleep(0.2) # Sleep for 0.2ms before checking again
+
+    # Rocket League screen has been opened and is active
+    print(F"{add_timestamp()}: Rocket League opened!")
+
+    # Assuming user is at the "Rewards" item list
+    # Until the user does not trigger the mouse to a corner of the screen or press F4, let's loop the rewards
+    while True:
+        for idx, pos in enumerate(listCommands):
+            if stop_event.is_set(): # Always check if the stop_event (F4) is called.
+                print(F"{add_timestamp()}: Exiting now from main loop.")
+                sys.exit(0)
+             # If we are in the "confirmItem" command, let's switch the mouse movement from 0.0 seconds (instant) to 5.5 (due to crate animation)
+            durationMove = 5.5 if idx == len(listCommands)-1 else 0.0
+            pyautogui.moveTo(pos[0]/ratioX, pos[1]/ratioY, duration=durationMove)
+            pyautogui.click(x=pos[0]/ratioX, y=pos[1]/ratioY, clicks=1, interval=0, button='left', duration=0.05)
+
+        pyautogui.press('esc', interval=0.1)
+        time.sleep(0.2)
+
+# Create and start the main thread
+main_thread = threading.Thread(target=main_thread)
+main_thread.start()
+
+# Create and start the key checking thread
+check_key_thread = threading.Thread(target=check_key_thread)
+check_key_thread.start()
+
+# Wait for the main thread to complete
+main_thread.join()
