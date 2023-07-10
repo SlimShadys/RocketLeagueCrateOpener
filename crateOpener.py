@@ -34,7 +34,7 @@ import cv2
 import pyautogui
 import pygetwindow as gw
 
-from utils import add_timestamp, checkButtons, checkKeyThread
+from utils import add_timestamp, checkButtons, checkKeyThread, getLanguage
 
 def mainThread() -> None:
     screenWidth, screenHeight = pyautogui.size() # Get the size of the primary monitor.
@@ -67,9 +67,9 @@ def mainThread() -> None:
     # Until the user does not trigger the mouse to a corner of the screen or press F4, let's loop the rewards
     while True:
         for idx, pos in enumerate(listCommands):
-             # If we are in the "confirmItem" command, let's sleep for 5.5 seconds (due to crate animation)
+             # If we are in the "confirmItem" command, let's sleep for 7.5 seconds (due to crate animation)
             if(idx == len(listCommands) - 1):
-                time.sleep(5.5)
+                time.sleep(durationCrateAnimation)
                 pos = checkButtons(okTemplate, equipNowTemplate, threshold)
                 if(pos[0] == 0):
                     stop_event.set()
@@ -78,8 +78,8 @@ def mainThread() -> None:
                 print(F"{add_timestamp()}: -- Exiting now from main loop --")
                 sys.exit(0)
 
-            pyautogui.moveTo(pos[0]/ratioX, pos[1]/ratioY, duration=durationMove)
-            pyautogui.click(x=pos[0]/ratioX, y=pos[1]/ratioY, clicks=1, interval=0, button='left', duration=0.05)
+            pyautogui.moveTo(pos[0]/ratioX, pos[1]/ratioY, duration=durationMouseMovement)
+            pyautogui.click(x=pos[0]/ratioX, y=pos[1]/ratioY, clicks=1, interval=0, button='left', duration=durationMouseClick)
 
         pyautogui.press('esc', interval=0.1)
         time.sleep(0.2)
@@ -87,12 +87,29 @@ def mainThread() -> None:
 # ----- ACTUAL MAIN LOOP ----- #
 if __name__ == '__main__':
 
+    # ======================= #
+    #         A R G S         #
+    # ======================= #
+    lang = None # Example: 'English' / 'Italian' / 'French' etc.
+    threshold = 0.89 # Set a threshold value for template matching results (Now accepting only values => 0.90)
+    durationMouseClick = 0.02 # Duration (in seconds) for mouse click. Default = 0.02 (Almost instant. We set it 0.02 for avoiding crashes)
+    durationMouseMovement = 0.0 # Duration (in seconds) for mouse movement. Default = 0.0 (Instant)
+    durationCrateAnimation = 7.5 # Duration (in seconds) for crate animation. Estimated around 7.5
+    # ======================= #
+
+    preferred_language = getLanguage(lang) 
+    file_path = f'media/EquipNow-{preferred_language}.png'
+
+    print("-------------------------------------")
+    if not os.path.isfile(file_path):
+        print(f"{add_timestamp()}: File '{file_path}' not found.\nMost probably the 'Equip now' image for your language has not been implemented yet.\nContact the developer or send a PR with the 'Equip now' button in your language. Check 'media' folder for examples.")
+        exit(0)
+    else:
+        print(F"{add_timestamp()}: Language correctly set as: {preferred_language}")
+
     # Load the template images for "Ok" and "Equip now" buttons
     okTemplate = cv2.imread(os.path.join('media', "Ok.png"), cv2.IMREAD_GRAYSCALE)
-    equipNowTemplate = cv2.imread(os.path.join('media', "EquipNow.png"), cv2.IMREAD_GRAYSCALE)
-
-    threshold = 0.89 # Set a threshold value for template matching results
-    durationMove = 0.0 # Duration for moving mouse. Default = 0.0 (Instant)
+    equipNowTemplate = cv2.imread(os.path.join('media', f'EquipNow-{preferred_language}.png'), cv2.IMREAD_GRAYSCALE)
 
     stop_event = threading.Event() # Stop event Thread
 
