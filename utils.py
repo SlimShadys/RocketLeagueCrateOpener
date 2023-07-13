@@ -33,11 +33,15 @@ def getLanguage(lang) -> str:
     else:
         return getLanguage(lang=response)
 
-def checkButtons(okTemplate, equipNowTemplate, threshold):
+def checkButtons(okTemplate, equipNowTemplate, threshold, ratioX, ratioY):
     # - Capture the screen using pyautogui
     # - Convert the captured image to a format compatible with OpenCV
     # - RGB to BGR
-    screenshot = cv2.cvtColor(np.array(pyautogui.screenshot()), cv2.COLOR_RGB2GRAY)
+    # - Resize the image w.r.t to ratio
+    screenshot = cv2.resize(cv2.cvtColor(np.array(pyautogui.screenshot()), cv2.COLOR_RGB2GRAY), dsize=(int(2560/ratioX),int(1440/ratioY)))
+
+    # Crop the buttons only. We do not care about items received (for now, maybe?)
+    screenshot = screenshot[int(1232/ratioX):int(1440/ratioY), int(800/ratioX):int(1710/ratioY)]
 
     # Perform template matching
     ok_result = cv2.matchTemplate(screenshot, okTemplate, cv2.TM_CCOEFF_NORMED)
@@ -49,7 +53,7 @@ def checkButtons(okTemplate, equipNowTemplate, threshold):
 
     # Determine the type of screen based on the presence of the template images
     if ok_screen_present and equip_screen_present:
-        screen_type = "both 'Ok' and 'Equip now'"
+        screen_type = "both 'Equip now' and 'Ok'"
         coords = (1458, 1320)
     elif ok_screen_present:
         screen_type = "only 'Ok'"
@@ -59,7 +63,7 @@ def checkButtons(okTemplate, equipNowTemplate, threshold):
         coords = (1458, 1320)
     else:
         print(F"{add_timestamp()}: No 'Equip now' and/or 'Ok' screen. Maybe crates are finished?")
-        coords = (0, 0)
+        return (0, 0)
     
     print(F"{add_timestamp()}: Opened crate with {screen_type} screen.")
     return coords

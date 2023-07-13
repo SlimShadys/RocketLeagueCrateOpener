@@ -36,15 +36,7 @@ import pygetwindow as gw
 
 from utils import add_timestamp, checkButtons, checkKeyThread, getLanguage
 
-def mainThread() -> None:
-    screenWidth, screenHeight = pyautogui.size() # Get the size of the primary monitor.
-
-    ratioX = 2560 / screenWidth
-    ratioY = 1440 / screenHeight
-
-    print(F"{add_timestamp()}: Operating on a screen with following resolution: {screenWidth}x{screenHeight}")
-    print(F"{add_timestamp()}: Ratio is: {ratioX}")
-
+def mainThread(ratioX, ratioY) -> None:
     # -------------------- List of commands for opening a crate --------------------
     #             selectCrate,  openCrate,  confirmOpening, confirmItem
     listCommands = [[133, 371], [274, 1218], [1135, 811], [0, 0]]
@@ -70,7 +62,7 @@ def mainThread() -> None:
              # If we are in the "confirmItem" command, let's sleep for 7.5 seconds (due to crate animation)
             if(idx == len(listCommands) - 1):
                 time.sleep(durationCrateAnimation)
-                pos = checkButtons(okTemplate, equipNowTemplate, threshold)
+                pos = checkButtons(okTemplate, equipNowTemplate, threshold, ratioX, ratioY)
                 if(pos[0] == 0):
                     stop_event.set()
 
@@ -87,34 +79,55 @@ def mainThread() -> None:
 # ----- ACTUAL MAIN LOOP ----- #
 if __name__ == '__main__':
 
+    screenWidth, screenHeight = pyautogui.size() # Get the size of the primary monitor.
+
+    ratioX = 2560 / screenWidth
+    ratioY = 1440 / screenHeight
+
+    print(F"{add_timestamp()}: Operating on a screen with following resolution: {screenWidth}x{screenHeight}")
+    print(F"{add_timestamp()}: Ratio is: {ratioX}")
+
     # ======================= #
     #         A R G S         #
     # ======================= #
-    lang = None # Example: 'English' / 'Italian' / 'French' etc.
-    threshold = 0.89 # Set a threshold value for template matching results (Now accepting only values => 0.90)
-    durationMouseClick = 0.02 # Duration (in seconds) for mouse click. Default = 0.02 (Almost instant. We set it 0.02 for avoiding crashes)
-    durationMouseMovement = 0.0 # Duration (in seconds) for mouse movement. Default = 0.0 (Instant)
-    durationCrateAnimation = 7.5 # Duration (in seconds) for crate animation. Estimated around 7.5
+    lang = None                     # Example: 'English' / 'Italian' / 'French' etc.
+    code = None                     # Example: 'en_US' / 'en_GB' / 'en_EN'
+    threshold = 0.85                # Set a threshold value for template matching results (Now accepting only values => 0.86)
+    durationMouseClick = 0.02       # Duration (in seconds) for mouse click. Default = 0.02 (Almost instant. We set it 0.02 for avoiding crashes)
+    durationMouseMovement = 0.0     # Duration (in seconds) for mouse movement. Default = 0.0 (Instant)
+    durationCrateAnimation = 7.5    # Duration (in seconds) for crate animation. Estimated around 7.5
     # ======================= #
 
-    preferred_language = getLanguage(lang) 
-    file_path = f'media/EquipNow-{preferred_language}.png'
+    # If there is a 'code' available, then directly load that file instead of asking the language to the user
+    if code != None:
+        preferred_language = code
+        file_path = f'buttons/EquipNow-{code}.png'
+    else:
+        preferred_language = getLanguage(lang) 
+        file_path = f'buttons/EquipNow-{preferred_language}.png'
 
     print("-------------------------------------")
     if not os.path.isfile(file_path):
-        print(f"{add_timestamp()}: File '{file_path}' not found.\nMost probably the 'Equip now' image for your language has not been implemented yet.\nContact the developer or send a PR with the 'Equip now' button in your language. Check 'media' folder for examples.")
+        print(f"{add_timestamp()}: File '{file_path}' not found.\nMost probably the 'Equip now' image for your language has not been implemented yet.\nContact the developer or send a PR with the 'Equip now' button in your language. Check 'buttons' folder for examples.")
         exit(0)
     else:
         print(F"{add_timestamp()}: Language correctly set as: {preferred_language}")
 
     # Load the template images for "Ok" and "Equip now" buttons
-    okTemplate = cv2.imread(os.path.join('media', "Ok.png"), cv2.IMREAD_GRAYSCALE)
-    equipNowTemplate = cv2.imread(os.path.join('media', f'EquipNow-{preferred_language}.png'), cv2.IMREAD_GRAYSCALE)
+    okTemplate = cv2.imread(os.path.join('buttons', "Ok.png"), cv2.IMREAD_GRAYSCALE)
+    equipNowTemplate = cv2.imread(os.path.join('buttons', f'EquipNow-{preferred_language}.png'), cv2.IMREAD_GRAYSCALE)
+
+    # Let's resize the templates with the ratio w.r.t to user screen.
+    # This is crucial, due to the fact that OpenCV needs to match the templates,
+    # but fails if the buttons are larger/smaller than the buttons in the screenshot.
+    okTemplate = cv2.resize(okTemplate, (int(okTemplate.shape[1]/ratioY), int(okTemplate.shape[0]/ratioX)))
+    equipNowTemplate = cv2.resize(equipNowTemplate, (int(equipNowTemplate.shape[1]/ratioY), int(equipNowTemplate.shape[0]/ratioX)))
+    print(F"{add_timestamp()}: Correctly resized the templates following your screen resolution.") 
 
     stop_event = threading.Event() # Stop event Thread
 
     # Create and start the main thread
-    mainThread = threading.Thread(target=mainThread)
+    mainThread = threading.Thread(target=mainThread(ratioX, ratioY))
     mainThread.start()
 
     # Create and start the key checking thread
